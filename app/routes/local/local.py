@@ -154,6 +154,17 @@ async def create_message(
 ):
     return LocalImpl(db).create_message(header, body, is_formatted)
 
+@router_local.post(
+    "/sendwhatsappmessage", 
+    response_model=dict,
+    tags=["Message"],
+
+
+)
+async def send_whatsapp_message(number: str, body: str):
+    result = LocalImpl.send_whatsapp_message(number, body)
+    return result
+
 
 @router_local.put(
     "/updatemessage",

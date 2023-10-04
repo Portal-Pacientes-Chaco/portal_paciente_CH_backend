@@ -1,5 +1,6 @@
 import base64
 import uuid
+import pywhatkit
 from datetime import datetime, timedelta
 from typing import Optional, Union
 
@@ -383,6 +384,14 @@ class LocalImpl:
             self.log.log_error_message(e, self.module)
             return ResponseNOK(message=f"Error: {str(e)}", code=417)
         return ResponseOK(message="Message deleted successfully.", code=200)
+
+    def send_whatsapp_message(numero: str, mensaje: str):
+        try:
+            hora_actual = datetime.datetime.now()
+            pywhatkit.sendwhatmsg(numero, mensaje, hora_actual.hour, hora_actual.minute+1, tab_close=True)
+            return {"message": "Mensaje enviado con éxito"}
+        except Exception as e:
+            return {"error": str(e)}
 
     def send_message(
         self, message_id: int, category_id: int, is_for_all_categories: bool
