@@ -2,14 +2,14 @@ import base64
 import uuid
 from datetime import datetime, timedelta
 from typing import Optional, Union
-
+from typing import List, Dict
 from fastapi import Request, status, File, UploadFile
 from fastapi.responses import Response
 from jose.exceptions import JWTError
 from sqlalchemy import func
 from sqlalchemy.exc import PendingRollbackError
 from sqlalchemy.orm import Session
-
+from dataclasses import dataclass, asdict
 from app.config.config import (
     WHITE_LIST_PATH,
     AUTHORIZATION_ENABLED,
@@ -44,6 +44,13 @@ from app.schemas.person_user import PersonUser as schema_person_user
 from app.schemas.responses import ResponseNOK, ResponseOK
 from app.schemas.user import User as schema_user
 from app.schemas.user import Userup as schema_userup
+from app.models.institutions import Institutions as model_institution
+from app.schemas.institutions import Institution as schemas_institution
+from app.models.services import Services as model_services
+from app.models.especialidades import Especialidades as model_especialidades
+
+
+
 
 
 class LocalImpl:
@@ -616,6 +623,153 @@ class LocalImpl:
             return ResponseNOK(message="User password not updated.", code=417)
 
         return ResponseOK(message="User password updated successfully.", code=201)
+
+    def on_off_institution(self, institution: schemas_institution):
+        try:
+            existing_institution = (
+                self.db.query(model_institution)
+                .where(model_institution.name == institution.name)
+                .first()
+            )
+            # swap to 1 or 0 according its value
+            existing_institution.activate = existing_institution.activate ^ 1
+            self.db.commit()
+        except Exception as e:
+            self.db.rollback()
+            self.log.log_error_message(e, self.module)
+            return ResponseNOK(message="Institution does not updated.", code=417)
+
+        return ResponseOK(message="Updated successfully.", code=201)
+
+    def update_institution(self, institution: schemas_institution):
+        existing_institution = (
+            self.db.query(model_institution)
+            .where(model_institution.id == institution.id)
+            .first()
+        )
+        if existing_institution is None:
+            return ResponseNOK(
+                value="", message="Institution does not exists.", code=417
+            )
+
+        try:
+            existing_institution.name = institution.name
+            existing_institution.codigo = institution.codigo
+            existing_institution.domicilio = institution.domicilio
+            existing_institution.tipologia = institution.tipologia
+            existing_institution.categoria_tipologia = institution.categoria_tipologia
+            existing_institution.dependencia = institution.dependencia
+            existing_institution.departamento = institution.departamento
+            existing_institution.localidad = institution.localidad
+            existing_institution.ciudad = institution.ciudad
+            existing_institution.telefono = institution.telefono
+            existing_institution.email = institution.email
+
+            # geolocalization
+            domicilio = f"{institution.domicilio}, {institution.localidad}, {institution.departamento}, Argentina"
+            lat, long = geolocator.get_lat_long_from_address(domicilio)
+            existing_institution.lat = lat
+            existing_institution.long = long
+
+            services = (
+                self.db.query(model_services)
+                .filter(model_services.id.in_(institution.services))
+                .all()
+            )
+            existing_institution.services = services
+
+            especialidades = (
+                self.db.query(model_especialidades)
+                .filter(model_especialidades.id.in_(institution.especialidades))
+                .all()
+            )
+            existing_institution.especialidades = especialidades
+
+            self.db.commit()
+        except Exception as e:
+            self.db.rollback()
+            self.log.log_error_message(e, self.module)
+            return ResponseNOK(message="Institution does not updated.", code=417)
+
+        return ResponseOK(message="Institution updated successfully.", code=201)
+
+    def get_institutions_by_id(self, institutions_id: int):
+        try:
+            value = (
+                self.db.query(model_institution)
+                .where(model_institution.id == institutions_id)
+                .first()
+            )
+        except Exception as e:
+            self.log.log_error_message(e, self.module)
+            return ResponseNOK(message="Institution cannot be retrieved.", code=202)
+        return value
+
+    def get_institutions(self) -> Union[List[Dict], ResponseNOK]:
+        try:
+            institution_list = self.db.query(model_institution).all()
+            return institution_list
+        except Exception as e:
+            self.log.log_error_message(e, self.module)
+            return ResponseNOK(message=f"Error: {str(e)}", code=417)
+
+    def create_institution(
+        self, institution: schemas_institution
+    ) -> Union[ResponseOK, ResponseNOK]:
+        buff_institution = (
+            self.db.query(model_institution)
+            .where(model_institution.name == institution.name)
+            .first()
+        )
+        if buff_institution is not None:
+            return ResponseNOK(
+                value="", message="Institution already exists.", code=417
+            )
+        try:
+            new_inst = model_institution(
+                name=institution.name,
+                codigo=institution.codigo,
+                domicilio=institution.domicilio,
+                tipologia=institution.tipologia,
+                categoria_tipologia=institution.categoria_tipologia,
+                dependencia=institution.dependencia,
+                departamento=institution.departamento,
+                localidad=institution.localidad,
+                ciudad=institution.ciudad,
+                telefono=institution.telefono,
+                email=institution.email,
+            )
+
+            services = (
+                self.db.query(model_services)
+                .filter(model_services.id.in_(institution.services))
+                .all()
+            )
+            new_inst.services = services
+
+            especialidades = (
+                self.db.query(model_especialidades)
+                .filter(model_especialidades.id.in_(institution.especialidades))
+                .all()
+            )
+            new_inst.especialidades = especialidades
+
+            domicilio = f"{institution.domicilio}, {institution.localidad}, {institution.departamento}, Argentina"
+            lat, long = geolocator.get_lat_long_from_address(domicilio)
+            new_inst.lat = lat
+            new_inst.long = long
+
+            self.db.add(new_inst)
+            self.db.commit()
+        except Exception as e:
+            self.db.rollback()
+            self.log.log_error_message(e, self.module)
+            return ResponseNOK(message="Institution not created.", code=417)
+        return ResponseOK(
+            message="Institution created successfully.",
+            code=201,
+            value=str(new_inst.id),
+        )
 
     def update_person(self, person: schema_person) -> Union[ResponseOK, ResponseNOK]:
         try:
