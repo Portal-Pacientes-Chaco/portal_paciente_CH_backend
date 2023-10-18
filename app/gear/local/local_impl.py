@@ -18,6 +18,8 @@ from app.config.config import (
     LOCAL_FILE_DOWNLOAD_DIRECTORY,
     VALIDATE_EMAIL_PATH,
 )
+from app.gear.geolocation import geolocator
+from app.gear.hsi.hsi_impl import HSI_Impl
 from app.gear.local.bearer_token import BearerToken
 from app.gear.log.main_logger import MainLogger, logging
 from app.gear.validation_mail.validation_mail import send_validation_mail
@@ -77,13 +79,14 @@ class LocalImpl:
                     "Access-Control-Allow-Methods": "POST, GET, OPTIONS, DELETE, PUT",
                     "Access-Control-Max-Age": "86400",
                     "Access-Control-Allow-Headers": "*",
-                    "Content-type": "*"
-                }
+                    "Content-type": "*",
+                },
             )
 
-        if AUTHORIZATION_ENABLED and (request.scope["path"] not in WHITE_LIST_PATH and
-                                      VALIDATE_EMAIL_PATH not in request.scope["path"]):
-
+        if AUTHORIZATION_ENABLED and (
+            request.scope["path"] not in WHITE_LIST_PATH
+            and VALIDATE_EMAIL_PATH not in request.scope["path"]
+        ):
             auth_token = request.headers.get("Authorization")
             bearer_token = BearerToken(auth_token)
 
@@ -302,7 +305,9 @@ class LocalImpl:
             username = payload.get("sub")
 
             # check if the user is in DB
-            user = self.db.query(model_user).where(model_user.username == username).first()
+            user = (
+                self.db.query(model_user).where(model_user.username == username).first()
+            )
             if user is None:
                 return False
 
@@ -392,13 +397,37 @@ class LocalImpl:
         return ResponseOK(message="Message deleted successfully.", code=200)
 
     def send_message(
-        self, message_id: int, category_id: int, is_for_all_categories: bool
+        self,
+        message_id: int,
+        category_id: int,
+        is_for_all_categories: bool,
+        username: Optional[str] = None,
     ):
+        admin_user: model_user = (
+            self.db.query(model_user).where(model_user.username == username).first()
+        )
+
+        if not admin_user.is_admin:
+            return ResponseNOK(
+                message="Message relation not created. Unauthorized", code=417
+            )
+
+        # A superadmin can send a message to all institutions
+        if admin_user.is_superadmin:
+            cond_institution = True
+        else:
+            cond_institution = (
+                model_person.id_usual_institution.in_(
+                    [inst.id for inst in admin_user.institutions]
+                )
+                if admin_user.institutions
+                else True
+            )
         try:
             create_relation = False
             receipt_found = False
 
-            existing_persons = self.db.query(model_person).all()
+            existing_persons = self.db.query(model_person).where(cond_institution).all()
             for p in existing_persons:
                 if is_for_all_categories:
                     receipt_found = True
@@ -624,6 +653,90 @@ class LocalImpl:
 
         return ResponseOK(message="User password updated successfully.", code=201)
 
+    def get_institutions_by_person_id(
+        self, person_id: int
+    ) -> Union[List[Dict], ResponseNOK]:
+        try:
+            person = (
+                self.db.query(model_person).filter(model_person.id == person_id).first()
+            )
+            return {"id_institution": person.id_usual_institution}
+        except Exception as e:
+            self.log.log_error_message(e, self.module)
+            return ResponseNOK(message=f"Error: {str(e)}", code=417)
+
+    def get_merge_institutions(self) -> Union[List[Dict], ResponseNOK]:
+        """
+        We need to have coordinated the institutions from HSI system and Portal. The
+        actual issue is that HSI is a live system and can change in the time adding
+        or removing institutions.
+
+        So, this method merge the two institutions lists. The data is saved in the portal
+        database, so to difference the id institutions from HSI will be saved multiplied
+        by 1000. In this way, Portal will know if an id is from HSI, and will get the data
+        from HSI or Portal. This transformation will only occur in the /createperson endpoint.
+
+        This method return a list of dictionaries with the form:
+
+        [
+            {
+              "id": "id",
+              "name": "name",
+              "portal": False,
+            },
+            {
+              "id": "id",
+              "name": "name",
+              "portal": True,
+            }
+            ...
+        ]
+        """
+
+        @dataclass
+        class MergedInstitutions:
+            id_inst: int
+            name: str
+            portal: bool = True
+
+        # Get institutions from HSI
+        hsi_impl = HSI_Impl()
+        hsi_institutions = hsi_impl.get_all_institutions()
+        try:
+            portal_institutions = [
+                MergedInstitutions(id_inst=id_inst, name=name)
+                for id_inst, name in self.db.query(
+                    model_institution.id, model_institution.name
+                ).all()
+            ]
+        except Exception as e:
+            self.log.log_error_message(e, self.module)
+            return ResponseNOK(message=f"Error: {str(e)}", code=417)
+
+        # TODO: Esto es horrible, hay que cambiar:
+        to_add = []
+        for hsi_inst in hsi_institutions:
+            exists = False
+            for portal_inst in portal_institutions:
+                if (
+                    unidecode(hsi_inst["name"]).upper()
+                    == unidecode(portal_inst.name).upper()
+                ):
+                    portal_inst.id_inst = hsi_inst["id"]
+                    portal_inst.portal = False
+                    exists = True
+                    break
+            if not exists:
+                to_add.append(
+                    MergedInstitutions(
+                        id_inst=hsi_inst["id"], name=hsi_inst["name"], portal=False
+                    )
+                )
+
+        portal_institutions += to_add
+
+        return [asdict(inst) for inst in portal_institutions]
+
     def on_off_institution(self, institution: schemas_institution):
         try:
             existing_institution = (
@@ -820,7 +933,14 @@ class LocalImpl:
 
             existing_person.is_deleted = None
 
-            
+            address = (
+                f"{existing_person.address_street} {existing_person.address_number}, "
+                f"{existing_person.locality}, {existing_person.department}, Argentina"
+            )
+            lat, long = geolocator.get_lat_long_from_address(address)
+            existing_person.lat = lat
+            existing_person.long = long
+            existing_person.inst_from_portal = updated_person.inst_from_portal
 
             self.db.commit()
             return ResponseOK(
@@ -974,6 +1094,11 @@ class LocalImpl:
         s_person.email = m_person.email
         s_person.is_deleted = m_person.is_deleted
 
+        s_person.lat = m_person.lat
+        s_person.long = m_person.long
+
+        s_person.inst_from_portal = m_person.inst_from_portal
+
         return s_person
 
     def set_admin_status_to_person(self, person_id: int, admin_status_id: int):
@@ -1011,6 +1136,13 @@ class LocalImpl:
         if user is not None:
             return ResponseNOK(message="Username already exists.", code=417)
         try:
+            address = (
+                f"{person_user.address_street} {person_user.address_number}, "
+                f"{person_user.locality}, {person_user.department}, Argentina"
+            )
+            lat, long = geolocator.get_lat_long_from_address(address)
+            person_user.lat = lat
+            person_user.long = long
             new_person = model_person(
                 None,
                 person_user.surname,
@@ -1038,6 +1170,9 @@ class LocalImpl:
                 person_user.locality,
                 person_user.email,
                 person_user.id_person_status,
+                person_user.inst_from_portal,
+                lat=person_user.lat,
+                long=person_user.long,
             )
 
             new_person.is_deleted = None
@@ -1204,8 +1339,11 @@ class LocalImpl:
             existing_person.identification_back_image_file_type = file2.content_type
             self.db.commit()
 
-            # validating email
-            await send_validation_mail(person_id, self.db)
+            if existing_person.identification_number == existing_person.identification_number_master:
+                # Este es el jefe de familia, hay que validar email
+                # validating email
+                await send_validation_mail(person_id, self.db)
+            # To the rest of family's members nothing to be done. So continue.
 
         except Exception as e:
             self.db.rollback()
