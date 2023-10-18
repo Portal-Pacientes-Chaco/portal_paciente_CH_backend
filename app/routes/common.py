@@ -35,3 +35,9 @@ router_sumar = APIRouter(
     prefix=LR_BASE_API,
     responses={404: {"description": "Not Found"}}
 )
+
+router_institutions = APIRouter(
+    tags=["Institutions"],
+    prefix=LR_BASE_API,
+    responses={404: {"description": "Not Found"}}
+)
