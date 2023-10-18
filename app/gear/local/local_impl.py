@@ -1126,3 +1126,54 @@ class LocalImpl:
             code=201,
         )
 
+    def indicador_cantidad_usuarios(self) -> int:
+        try:
+            contador = self.db.query(model_user).count()
+            response_data = {"cantidad_usuarios": contador}
+        except Exception as e:
+            self.db.rollback()
+            self.log.log_error_message(e, self.module)
+            return ResponseNOK(message="Error en la consulta", code=417)
+        return response_data
+
+    def indicador_usuarios_validados(self) -> int:
+        try:
+            contador = (
+                self.db.query(model_person)
+                .filter(model_person.id_admin_status == 2)
+                .count()
+            )
+            response_data = {"usuarios_validados": contador}
+        except Exception as e:
+            self.db.rollback()
+            self.log.log_error_message(e, self.module)
+            return ResponseNOK(message="Error en la consulta", code=417)
+        return response_data
+
+    def indicador_usuarios_rechazados(self) -> int:
+        try:
+            contador = (
+                self.db.query(model_person)
+                .filter(model_person.id_admin_status == 3)
+                .count()
+            )
+            response_data = {"usuarios_rechazados": contador}
+        except Exception as e:
+            self.db.rollback()
+            self.log.log_error_message(e, self.module)
+            return ResponseNOK(message="Error en la consulta", code=417)
+        return response_data
+
+    def indicador_usuarios_pendientes(self) -> int:
+        try:
+            contador = (
+                self.db.query(model_person)
+                .filter(model_person.id_admin_status == 1)
+                .count()
+            )
+            response_data = {"usuarios_pendientes_autorizar": contador}
+        except Exception as e:
+            self.db.rollback()
+            self.log.log_error_message(e, self.module)
+            return ResponseNOK(message="Error en la consulta", code=417)
+        return response_data
