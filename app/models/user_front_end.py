@@ -11,7 +11,6 @@ class UserFrontEnd(Base):
     password_hash = Column(String(500), nullable=False)
     id_person = Column(Integer, nullable=False)
     id_user_status = Column(Integer, nullable=False)
-    id_role = Column(Integer, nullable=False)
 
     @property
     def password(self):
