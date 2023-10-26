@@ -38,6 +38,7 @@ from app.schemas.person_user import PersonUser as schema_person_user
 from app.schemas.responses import HTTPError
 from app.schemas.responses import ResponseOK, ResponseNOK
 from app.schemas.role import Role
+from app.schemas.study_type import StudyType
 from app.schemas.token import Token
 from app.auth_tgd.get_token_tgd import AuthTgd
 
@@ -444,3 +445,13 @@ async def upload_study(
     return await StudiesController(db).upload_study(
         person_id, description, study_type_id, study
     )
+
+
+@router_local.get(
+    "/study-types",
+    response_model=List[StudyType],
+    responses={417: {"model": ResponseNOK}},
+    tags=["Estudios"],
+)
+async def get_study_types(db: Session = Depends(get_db)):
+    return StudiesController(db).get_study_types()
