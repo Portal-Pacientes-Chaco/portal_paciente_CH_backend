@@ -76,3 +76,4 @@ uvloop==0.16.0
 watchgod==0.7
 websockets==10.1
 wrapt==1.14.0
+filetype==1.2.0
