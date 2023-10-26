@@ -17,6 +17,7 @@ from app.gear.recover_password.recover_password import (
     send_recovery_password_mail,
     recover_password,
 )
+from app.gear.studies.studies import StudiesController
 from app.gear.validation_mail.validation_mail import validate_email
 from app.gear.turnos.turnos_mailer import send_turno_mail
 from app.main import get_db
@@ -429,4 +430,17 @@ async def enviar_turno_mail(person_id: str, subject: str, body: str):
     await send_turno_mail(person_id, subject, body)
     return ResponseOK(
         message="Email send it", code=200
+    )
+
+
+@router_local.post("/upload-study", response_model=ResponseOK, tags=["Estudios"])
+async def upload_study(
+    person_id: int,
+    description: str,
+    study_type_id: int,
+    study: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    return await StudiesController(db).upload_study(
+        person_id, description, study_type_id, study
     )
