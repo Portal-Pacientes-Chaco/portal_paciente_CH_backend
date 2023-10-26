@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.gear.log.main_logger import MainLogger, logging
 from app.gear.studies.config import UPLOAD_DIR
+from app.models import StudyType as model_study_type
 from app.models.person import Person as model_person
 from app.models.study import Studies as model_studies
 from app.schemas.responses import ResponseNOK, ResponseOK
@@ -99,3 +100,16 @@ class StudiesController:
         except Exception as e:
             self.db.rollback()
             return ResponseNOK(message=f"Error: {str(e)}", code=500)
+
+    def get_study_types(self):
+        try:
+            result = []
+            study_types = self.db.query(model_study_type).all()
+
+            for u in study_types:
+                result.append({"id": u.id, "type_name": u.type_name})
+
+            return result
+        except Exception as e:
+            self.log.log_error_message(e, self.module)
+            return ResponseNOK(message=f"Error: {str(e)}", code=417)
