@@ -1,6 +1,7 @@
 import bcrypt
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text
 from datetime import datetime
+from sqlalchemy.orm import relationship
 
 from app.config.database import Base
 
@@ -40,6 +41,8 @@ class Person(Base):
     identification_back_image_file_type = Column(String(45), nullable=True)
     id_person_status = Column(Integer, nullable=True)
     is_admin = Column(Integer, nullable=False, default=0)
+
+    studies = relationship("Studies", back_populates="person")
 
     def __init__(
         self, id: int, surname: str, name: str, identification_number: str, birthdate: datetime, id_gender: int,
