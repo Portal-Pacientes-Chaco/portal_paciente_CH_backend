@@ -1,4 +1,5 @@
 import base64
+import io
 import os
 from datetime import datetime
 from pathlib import Path
@@ -6,6 +7,7 @@ from pathlib import Path
 import filetype
 
 from fastapi import File, UploadFile
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.gear.log.main_logger import MainLogger, logging
@@ -142,6 +144,30 @@ class StudiesController:
                 )
 
             return result
+        except Exception as e:
+            self.log.log_error_message(e, self.module)
+            return ResponseNOK(message=f"Error: {str(e)}", code=417)
+
+    def get_study_by_id(self, study_id: int):
+        try:
+            study = (
+                self.db.query(model_studies).where(model_studies.id == study_id).first()
+            )
+
+            if study is None:
+                return ResponseNOK(
+                    message=f"Study with ID {study_id} not found", code=404
+                )
+
+            decoded_file = base64.b64decode(study.file_path)
+            file_stream = io.BytesIO(decoded_file)
+
+            return StreamingResponse(
+                file_stream,
+                headers={
+                    "Content-Disposition": f"attachment; filename={study.study_name}"
+                },
+            )
         except Exception as e:
             self.log.log_error_message(e, self.module)
             return ResponseNOK(message=f"Error: {str(e)}", code=417)
