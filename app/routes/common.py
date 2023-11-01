@@ -24,8 +24,20 @@ router_admin = APIRouter(
     responses={404: {"description": "Not Found"}}
 )
 
+router_indicadores = APIRouter(
+    tags=["Indicadores"],
+    prefix=LR_BASE_API,
+    responses={404: {"description": "Not Found"}}
+)
+
 router_sumar = APIRouter(
     tags=["SUMAR"],
+    prefix=LR_BASE_API,
+    responses={404: {"description": "Not Found"}}
+)
+
+router_institutions = APIRouter(
+    tags=["Institutions"],
     prefix=LR_BASE_API,
     responses={404: {"description": "Not Found"}}
 )
