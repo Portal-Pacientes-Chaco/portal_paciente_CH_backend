@@ -103,3 +103,29 @@ RECOVERY_PASSWORD_URL = f"{SERVER_IP}{RECOVERY_ENDPOINT}"
 TEMPLATE_FOLDER_RECOVERY_PASSWORD = os.getenv("TEMPLATE_FOLDER_RECOVERY_PASSWORD", "/code/app/templates/")
 
 # endregion
+
+# DATOS GOB AR
+API_DATOS_GOB_AR = os.getenv(
+    "API_DATOS_GOB_AR", "https://apis.datos.gob.ar/georef/api/"
+)
+API_DATOS_GOB_AR_PROVINCIAS = API_DATOS_GOB_AR + "provincias"
+API_DATOS_GOB_AR_DEPARTAMENTOS = API_DATOS_GOB_AR + "departamentos"
+API_DATOS_GOB_AR_LOCALIDADES = API_DATOS_GOB_AR + "localidades"
+
+# region google maps
+GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
+# endregion
+
+
+# region turnos manager
+
+TURNOS_MANAGER_HOST = os.getenv("TURNOS_MANAGER_HOST", "127.0.0.1")
+TURNOS_MANAGER_PORT = os.getenv("TURNOS_MANAGER_PORT", 9000)
+TURNOS_MANAGER_URL = (
+    f"http://{TURNOS_MANAGER_HOST}:{TURNOS_MANAGER_PORT}/turnos/api/v1/turnos/"
+)
+TURNOS_MANAGER_ENDPOINT = (
+    f"http://{TURNOS_MANAGER_HOST}:{TURNOS_MANAGER_PORT}/turnos/api/v1/"
+)
+# endregion
+
