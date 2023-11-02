@@ -1,7 +1,8 @@
 from typing import Dict
-
-from app.gear.sumar.sumar_impl import SumarImplChaco, Vacunacion
+from app.schemas.sumar_result import SumarResult
+from app.gear.sumar.sumar_impl import SumarImplChaco, Vacunacion, GetData
 from app.routes.common import router_sumar
+from app.gear.local.sumar import get_afiliado_data
 
 
 @router_sumar.get("/me", tags=["SUMAR"])
@@ -37,3 +38,12 @@ async def get_efectores_priorizados() -> Dict:
 async def get_vaccines(dni: str) -> Dict:
     sumar_impl = Vacunacion()
     return sumar_impl.get_vaccines(dni)
+
+@router_sumar.get("/ceb/{dni_afiliado}", tags=["SUMAR", "ceb"], response_model=Dict[str, bool])
+async def get_ceb_value(dni_afiliado: str) -> Dict[str, bool]:
+    ceb_value = GetData.get_ceb_value(dni_afiliado)
+    return {"msg": ceb_value}
+
+@router_sumar.get("/data/{dni_afiliado}", tags=["SUMAR", "data"], response_model=SumarResult)
+async def get_sumar_data(dni_afiliado: str) -> SumarResult:
+    return get_afiliado_data(dni_afiliado)
